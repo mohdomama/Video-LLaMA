@@ -176,6 +176,8 @@ class Chat:
         # self.stopping_criteria = StoppingCriteriaList([StoppingCriteriaSub(stops=stop_words_ids)])
 
     def ask(self, text, conv):
+        print('Inside Ask')
+        
         if len(conv.messages) > 0 and conv.messages[-1][0] == conv.roles[0] \
                 and ('</Video>' in conv.messages[-1][1] or '</Image>' in conv.messages[-1][1]):  # last message is image.
             conv.messages[-1][1] = ' '.join([conv.messages[-1][1], text])
@@ -185,6 +187,8 @@ class Chat:
     def answer(self, conv, img_list, max_new_tokens=300, num_beams=1, min_length=1, top_p=0.9,
                repetition_penalty=1.0, length_penalty=1, temperature=1.0, max_length=2000):
         conv.append_message(conv.roles[1], None)
+        print('Inside Answer')
+        
         embs = self.get_context_emb(conv, img_list)
 
         current_max_len = embs.shape[1] + max_new_tokens
@@ -230,8 +234,18 @@ class Chat:
         conv.messages[-1][1] = output_text
         return output_text, output_token.cpu().numpy()
     
-    def upload_video(self, video_path, conv, img_list):
+    def custom_upload_video_without_audio(self, video, msg, conv, img_list):
 
+        video = self.vis_processor.transform(video)
+        video = video.unsqueeze(0).to(self.device)
+        # conv.system = "You can understand the video that the user provides.  Follow the instructions carefully and explain your answers in detail."
+        image_emb, _ = self.model.encode_videoQformer_visual(video)
+        
+        img_list.append(image_emb)
+        conv.append_message(conv.roles[0], "<Video><ImageHere></Video> "+ msg)
+        return "Received."
+    
+    def upload_video(self, video_path, conv, img_list):
         msg = ""
         if isinstance(video_path, str):  # is a video path
             ext = os.path.splitext(video_path)[-1].lower()
@@ -278,6 +292,7 @@ class Chat:
             return "Received."
 
     def upload_video_without_audio(self, video_path, conv, img_list):
+        print('Inside Upload Video Without Audio')
         msg = ""
         if isinstance(video_path, str):  # is a video path
             ext = os.path.splitext(video_path)[-1].lower()
@@ -299,6 +314,7 @@ class Chat:
         
         # conv.system = "You can understand the video that the user provides.  Follow the instructions carefully and explain your answers in detail."
         image_emb, _ = self.model.encode_videoQformer_visual(video)
+        
         img_list.append(image_emb)
         conv.append_message(conv.roles[0], "<Video><ImageHere></Video> "+ msg)
         return "Received."

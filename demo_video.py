@@ -101,6 +101,7 @@ def upload_imgorvideo(gr_video, gr_img, text_input, chat_state,chatbot):
         chatbot = chatbot + [((gr_video,), None)]
         chat_state.system =  "You are able to understand the visual content that the user provides. Follow the instructions carefully and explain your answers in detail."
         img_list = []
+        
         llm_message = chat.upload_video_without_audio(gr_video, chat_state, img_list)
         return gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=True, placeholder='Type and press Enter'), gr.update(value="Start Chatting", interactive=False), chat_state, img_list,chatbot
     else:
@@ -108,6 +109,7 @@ def upload_imgorvideo(gr_video, gr_img, text_input, chat_state,chatbot):
         return gr.update(interactive=False), gr.update(interactive=False, placeholder='Currently, only one input is supported'), gr.update(value="Currently, only one input is supported", interactive=False), chat_state, None,chatbot
 
 def gradio_ask(user_message, chatbot, chat_state):
+    print('Gradio Ask')
     if len(user_message) == 0:
         return gr.update(interactive=True, placeholder='Input should not be empty!'), chatbot, chat_state
     chat.ask(user_message, chat_state)
@@ -116,6 +118,7 @@ def gradio_ask(user_message, chatbot, chat_state):
 
 
 def gradio_answer(chatbot, chat_state, img_list, num_beams, temperature):
+    print('Gradio Answer')
     llm_message = chat.answer(conv=chat_state,
                               img_list=img_list,
                               num_beams=num_beams,
@@ -241,7 +244,7 @@ with gr.Blocks() as demo:
     )
     clear.click(gradio_reset, [chat_state, img_list], [chatbot, video, image, text_input, upload_button, chat_state, img_list], queue=False)
     
-demo.launch(share=False, enable_queue=True)
+demo.launch(share=True, enable_queue=True)
 
 
 # %%
