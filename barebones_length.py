@@ -26,6 +26,11 @@ from video_llama.models import *
 from video_llama.processors import *
 from video_llama.runners import *
 from video_llama.tasks import *
+import itertools
+import tqdm
+import pickle
+
+
 
 #%%
 def parse_args():
@@ -55,9 +60,6 @@ def setup_seeds(config):
     cudnn.deterministic = True
 
 
-
-
-
 # take cat.jpeg and dog.jpeg in data folder and create a pytorch tensor of 8 images with 50% cat and 50% dog at random indices
 def create_video_one_dog(video_len: int = 8):
     cat_img = Image.open('data/cat.jpeg')
@@ -83,9 +85,10 @@ def create_video_one_dog(video_len: int = 8):
     msg = f"The video contains {video_len} frames sampled at {sec} seconds. Each frame has either a cat or a dog"
     return final_tensor, ground_truth, msg
 
-main_img = 'horse'
-other_img = 'aeroplane'
+
 def create_video_given_split(video_len: int = 8, ratio: float = 0.5):
+    main_img = 'horse'
+    other_img = 'aeroplane'
     # if video_len%2 != 0: raise ValueError("len must be even!")
     img1 = Image.open('data/' + main_img +'.jpeg')
     img2 = Image.open('data/' + other_img + '.jpeg')
@@ -111,11 +114,11 @@ def create_video_given_split(video_len: int = 8, ratio: float = 0.5):
     return final_tensor, ground_truth, msg
 
 
-def preposition_a(video_len: int = 8, ratio: float = 0.5):
-    a_img = Image.open('data/' + 'horse' +'.jpeg')
-    b_img = Image.open('data/' + 'cat' + '.jpeg')
+def preposition_a(video_len, img_names):
+    a_img = Image.open('data/' + img_names[0] +'.jpeg')
+    b_img = Image.open('data/' + img_names[1] + '.jpeg')
 
-    asplit = max( 1, int(video_len  * ratio) )
+    asplit = 3
     bsplit = video_len - asplit
     indxs = np.arange(video_len)
     np.random.shuffle(indxs)
@@ -139,18 +142,18 @@ def preposition_a(video_len: int = 8, ratio: float = 0.5):
     final_tensor = final_tensor.permute(1, 0, 2, 3) * 255
     sec = ", ".join([str(x.item()) for x in torch.arange(video_len) ])
     msg = f"The video contains {video_len} frames sampled at {sec} seconds."
-    question = "Is there a horse  in this video?"
+    question = f"Is there a {img_names[0]} in this video?"
     return final_tensor, ground_truth, msg, question
 
 
-def preposition_a_and_b(video_len: int = 8, ratio: float = 0.5):
-    a_img = Image.open('data/' + 'horse' +'.jpeg')
-    b_img = Image.open('data/' + 'aeroplane' + '.jpeg')
-    c_img = Image.open('data/' + 'cat' + '.jpeg')
+def preposition_a_and_b(video_len, img_names):
+    a_img = Image.open('data/' + img_names[0] +'.jpeg')
+    b_img = Image.open('data/' + img_names[1] + '.jpeg')
+    c_img = Image.open('data/' + img_names[2] + '.jpeg')
     
 
-    asplit = max( 1, int(video_len  * (ratio/2)) )
-    bsplit = max( 1, int(video_len  * (ratio/2)) )
+    asplit = 2
+    bsplit = 1
     csplit = video_len - asplit - bsplit
     indxs = np.arange(video_len)
     np.random.shuffle(indxs)
@@ -180,18 +183,18 @@ def preposition_a_and_b(video_len: int = 8, ratio: float = 0.5):
     final_tensor = final_tensor.permute(1, 0, 2, 3) * 255
     sec = ", ".join([str(x.item()) for x in torch.arange(video_len) ])
     msg = f"The video contains {video_len} frames sampled at {sec} seconds."
-    question = "Is there a horse and an aeroplane in the video?"
+    question = f"Is there a {img_names[0]} and an {img_names[1]} in the video?"
     return final_tensor, ground_truth, msg, question
 
-def preposition_a_and_b_and_c(video_len: int = 8, ratio: float = 0.5):
-    a_img = Image.open('data/' + 'horse' +'.jpeg')
-    b_img = Image.open('data/' + 'aeroplane' + '.jpeg')
-    c_img = Image.open('data/' + 'dog' + '.jpeg')
-    d_img = Image.open('data/' + 'cat' + '.jpeg')
+def preposition_a_and_b_and_c(video_len, img_names):
+    a_img = Image.open('data/' + img_names[0] +'.jpeg')
+    b_img = Image.open('data/' + img_names[1] + '.jpeg')
+    c_img = Image.open('data/' + img_names[2] + '.jpeg')
+    d_img = Image.open('data/' + img_names[3] + '.jpeg')
 
-    asplit = max( 1, int(video_len  * (ratio/3)) )
-    bsplit = max( 1, int(video_len  * (ratio/3)) )
-    csplit = max( 1, int(video_len  * (ratio/3)) )
+    asplit = 1
+    bsplit = 1
+    csplit = 1
     dsplit = video_len - asplit - bsplit - csplit
 
     indxs = np.arange(video_len)
@@ -226,17 +229,12 @@ def preposition_a_and_b_and_c(video_len: int = 8, ratio: float = 0.5):
     final_tensor = final_tensor.permute(1, 0, 2, 3) * 255
     sec = ", ".join([str(x.item()) for x in torch.arange(video_len) ])
     msg = f"The video contains {video_len} frames sampled at {sec} seconds."
-    question = "Is there a horse, an aeroplane and a dog in the video? "
+    question = f"Is there a {img_names[0]}, an {img_names[1]} and a {img_names[2]} in the video? "
     return final_tensor, ground_truth, msg, question
 
     
 
-preposition_to_use = 'AandBandC'
-preposition_to_func = {
-    'A': preposition_a,
-    'AandB': preposition_a_and_b,
-    'AandBandC': preposition_a_and_b_and_c,
-}
+
 
 # final_tensor, ground_truth, msg = create_video_equal_split(video_len=8)
 
@@ -260,80 +258,49 @@ vis_processor = registry.get_processor_class(vis_processor_cfg.name).from_config
 # possible_lengths = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 # possible_ratio = [0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
 
-possible_lengths = [15, 20, 25, 30, 35, 40, 45, 50]
-possible_ratio = [0.6, 0.5, 0.4, 0.3, 0.2]
-
-results = np.zeros((len(possible_lengths), len(possible_ratio)))
-
-for video_len in possible_lengths:
-    for ratio in possible_ratio:
-        chat = Chat(model, vis_processor, device='cuda:{}'.format(args.gpu_id))
-        chat_state = conv_llava_llama_2.copy()
-
-        chat_state.system =  "You are able to understand the visual content that the user provides. Follow the instructions carefully and explain your answers in detail."
-        img_list = []
-        # final_tensor, ground_truth, msg = create_video_one_dog(video_len=video_len)
-        # final_tensor, ground_truth, msg = create_video_given_split(video_len=video_len, ratio=ratio)
-        final_tensor, ground_truth, msg, question = preposition_to_func[preposition_to_use](video_len=video_len, ratio=ratio)
-
-        llm_message = chat.custom_upload_video_without_audio(final_tensor, msg, chat_state, img_list)
-
-        # Can be in a loop
-        print(f'\nFor video length {video_len} and ratio {ratio}:')
-        print('Ground Truth: ', ground_truth)
+possible_lengths = [5,10,15,20, 25]
+repeat = 20
+img_names_perm  = list(itertools.permutations(['horse', 'aeroplane', 'dog', 'cat']))
+num_perm = len(img_names_perm)
 
 
-        # user_message = 'What is happening in this video?'
-        # chat.ask(user_message, chat_state)
-        # llm_message = chat.answer(conv=chat_state,
-        #                         img_list=img_list,
-        #                         num_beams=5, # Set with slider in demo
-        #                         temperature=1, # Set with slider in demo
-        #                         max_new_tokens=300,
-        #                         max_length=2000)[0]
 
-        # user_message = f'Is there an {main_img} and an {other_img} in the video?'
-        user_message = question
-        # user_message = f'Do both aeroplane and horse exist in the video?'
-        chat.ask(user_message, chat_state)
-        llm_message = chat.answer(conv=chat_state,
-                                img_list=img_list,
-                                num_beams=5, # Set with slider in demo
-                                temperature=1, # Set with slider in demo
-                                max_new_tokens=300,
-                                max_length=2000)[0]
-        print('LLM Message: ', llm_message)
-        if 'Yes' in llm_message and 'No' not in llm_message and 'no' not in llm_message:
-            results[possible_lengths.index(video_len), possible_ratio.index(ratio)] = 1
+preposition_to_use = 'A'
+preposition_to_func = {
+    'A': preposition_a,
+    'AandB': preposition_a_and_b,
+    'AandBandC': preposition_a_and_b_and_c,
+}
+
+for preposition_to_use in ['A', 'AandB', 'AandBandC']:
+    results = np.zeros(( num_perm, len(possible_lengths), repeat ))
+    for perm_idx, img_names in enumerate(tqdm.tqdm(img_names_perm)):
+        for video_len in possible_lengths:
+            for repeat_itr in range(repeat):
+                chat = Chat(model, vis_processor, device='cuda:{}'.format(args.gpu_id))
+                chat_state = conv_llava_llama_2.copy()
+
+                chat_state.system =  "You are able to understand the visual content that the user provides. Follow the instructions carefully and explain your answers in detail."
+                img_list = []
+
+                final_tensor, ground_truth, msg, question = preposition_to_func[preposition_to_use](video_len=video_len, img_names=img_names)
+
+                llm_message = chat.custom_upload_video_without_audio(final_tensor, msg, chat_state, img_list)
+
+                user_message = question
+
+                chat.ask(user_message, chat_state)
+                llm_message = chat.answer(conv=chat_state,
+                                        img_list=img_list,
+                                        num_beams=5, # Set with slider in demo
+                                        temperature=1, # Set with slider in demo
+                                        max_new_tokens=300,
+                                        max_length=2000)[0]
+                # print('LLM Message: ', llm_message)
+                if 'Yes' in llm_message and 'No' not in llm_message and 'no' not in llm_message:
+                    results[perm_idx, possible_lengths.index(video_len), repeat_itr] = 1
 
 
-print('Results:', results)
-# save results in pickle file
-import pickle
-with open(f'data/plotdata_{preposition_to_use}.pkl', 'wb') as f:
-    pickle.dump([results, possible_lengths, possible_ratio], f)
-
-# # Load image from pickle file
-# with open(f'data/{main_img}_plotdata.pkl', 'rb') as f:
-#     results, possible_lengths, possible_ratio = pickle.load(f)
-
-
-# # plot accuracy vs ration
-# import matplotlib.pyplot as plt
-# vals = np.average(results, axis=0)    
-# plt.scatter(possible_ratio, vals)
-# # plot title, x and y labels
-# plt.title(f"Finding Existence of a Preposition({main_img}) in a Video using VideoLlama")
-# plt.xlabel("Ratio of Frames Containing the Preposition")
-# plt.ylabel("Accuracy")
-# plt.savefig(f'data/{main_img}_ratio_vs_accuracy.png')
-
-# plt.cla()
-
-# vals = np.average(results, axis=1)    
-# plt.scatter(possible_lengths, vals)
-# # plot title, x and y labels
-# plt.title("Finding Existence of a Preposition({main_img}) in a Video using VideoLlama")
-# plt.xlabel("Length on Video")
-# plt.ylabel("Accuracy")
-# plt.savefig(f'data/{main_img}_length_vs_accuracy.png')
+    # print('Results:', results)
+    with open(f'data/plotdata_{preposition_to_use}.pkl', 'wb') as f:
+        pickle.dump([results, possible_lengths, repeat], f)
