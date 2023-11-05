@@ -234,7 +234,51 @@ def preposition_a_and_b_and_c(video_len, img_names):
 
     
 
+def preposition_a_until_b(video_len, img_names):
+    a_img = Image.open('data/' + img_names[0] +'.jpeg')
+    b_img = Image.open('data/' + img_names[1] + '.jpeg')
+    c_img = Image.open('data/' + 'whitebg' + '.jpeg')
+    
 
+    asplit = 1
+    bsplit = 1
+    csplit = video_len - asplit - bsplit
+    indxs = np.arange(video_len)
+    # np.random.shuffle(indxs)
+
+    # np select two random indices
+    aidxs, bidxs = np.random.randint(0, video_len-1, (2,))
+
+    aidxs = [aidxs]
+    bidxs = [bidxs]
+
+
+    final_list = [c_img.copy() for i in range(video_len)]
+
+    for idx in aidxs:
+        final_list[idx] = a_img.copy()
+    
+    for idx in bidxs:
+        final_list[idx] = b_img.copy()
+
+    ground_truth = np.array(['c'] * video_len)
+    ground_truth[aidxs] = 'a'
+    ground_truth[bidxs] = 'b'
+
+    transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    ])
+
+    final_tensor = torch.stack([transform(img) for img in final_list])
+    final_tensor = final_tensor.permute(1, 0, 2, 3) * 255
+    sec = ", ".join([str(x.item()) for x in torch.arange(video_len) ])
+    msg = f"The video contains {video_len} frames sampled at {sec} seconds."
+    question = f"Does this video show a {img_names[0]} until a {img_names[1]} appears?"
+    answer = 'yes' if aidxs[0] < bidxs[0] else 'no'
+    return final_tensor, ground_truth, msg, question, answer
+
+    
 
 # final_tensor, ground_truth, msg = create_video_equal_split(video_len=8)
 
@@ -255,52 +299,108 @@ model.eval()
 vis_processor_cfg = cfg.datasets_cfg.webvid.vis_processor.train
 vis_processor = registry.get_processor_class(vis_processor_cfg.name).from_config(vis_processor_cfg)
 
-# possible_lengths = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-# possible_ratio = [0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
-
-possible_lengths = [5,10,15,20, 25]
-repeat = 20
-img_names_perm  = list(itertools.permutations(['horse', 'aeroplane', 'dog', 'cat']))
-num_perm = len(img_names_perm)
-
-
-
-preposition_to_use = 'A'
 preposition_to_func = {
-    'A': preposition_a,
-    'AandB': preposition_a_and_b,
-    'AandBandC': preposition_a_and_b_and_c,
-}
+        'A': preposition_a,
+        'AandB': preposition_a_and_b,
+        'AandBandC': preposition_a_and_b_and_c,
+        'AuntilB': preposition_a_until_b
+    }
 
-for preposition_to_use in ['A', 'AandB', 'AandBandC']:
-    results = np.zeros(( num_perm, len(possible_lengths), repeat ))
-    for perm_idx, img_names in enumerate(tqdm.tqdm(img_names_perm)):
-        for video_len in possible_lengths:
-            for repeat_itr in range(repeat):
-                chat = Chat(model, vis_processor, device='cuda:{}'.format(args.gpu_id))
-                chat_state = conv_llava_llama_2.copy()
 
-                chat_state.system =  "You are able to understand the visual content that the user provides. Follow the instructions carefully and explain your answers in detail."
-                img_list = []
+def and_runner():
+    possible_lengths = [5,10,15,20, 25]
+    repeat = 20
+    img_names_perm  = list(itertools.permutations(['horse', 'aeroplane', 'dog', 'cat']))
+    num_perm = len(img_names_perm)
 
-                final_tensor, ground_truth, msg, question = preposition_to_func[preposition_to_use](video_len=video_len, img_names=img_names)
+    for preposition_to_use in ['A', 'AandB', 'AandBandC']:
+        results = np.zeros(( num_perm, len(possible_lengths), repeat ))
+        for perm_idx, img_names in enumerate(tqdm.tqdm(img_names_perm)):
+            for video_len in possible_lengths:
+                for repeat_itr in range(repeat):
+                    chat = Chat(model, vis_processor, device='cuda:{}'.format(args.gpu_id))
+                    chat_state = conv_llava_llama_2.copy()
 
-                llm_message = chat.custom_upload_video_without_audio(final_tensor, msg, chat_state, img_list)
+                    chat_state.system =  "You are able to understand the visual content that the user provides. Follow the instructions carefully and explain your answers in detail."
+                    img_list = []
 
-                user_message = question
+                    final_tensor, ground_truth, msg, question = preposition_to_func[preposition_to_use](video_len=video_len, img_names=img_names)
 
-                chat.ask(user_message, chat_state)
-                llm_message = chat.answer(conv=chat_state,
-                                        img_list=img_list,
-                                        num_beams=5, # Set with slider in demo
-                                        temperature=1, # Set with slider in demo
-                                        max_new_tokens=300,
-                                        max_length=2000)[0]
-                # print('LLM Message: ', llm_message)
-                if 'Yes' in llm_message and 'No' not in llm_message and 'no' not in llm_message:
-                    results[perm_idx, possible_lengths.index(video_len), repeat_itr] = 1
+                    llm_message = chat.custom_upload_video_without_audio(final_tensor, msg, chat_state, img_list)
 
+                    user_message = question
+
+                    chat.ask(user_message, chat_state)
+                    llm_message = chat.answer(conv=chat_state,
+                                            img_list=img_list,
+                                            num_beams=5, # Set with slider in demo
+                                            temperature=1, # Set with slider in demo
+                                            max_new_tokens=300,
+                                            max_length=2000)[0]
+                    # print('LLM Message: ', llm_message)
+                    if 'Yes' in llm_message and 'No' not in llm_message and 'no' not in llm_message:
+                        results[perm_idx, possible_lengths.index(video_len), repeat_itr] = 1
+
+
+        # print('Results:', results)
+        with open(f'data/plotdata_{preposition_to_use}.pkl', 'wb') as f:
+            pickle.dump([results, possible_lengths, repeat], f)
+            
+
+
+def until_runner():
+    possible_lengths = [5,10,15,20, 25]
+    repeat = 5
+
+    possible_until_dis = [5, 10,15,20]
+    repeat = 5
+    # img_names_perm  = list(itertools.permutations(['horse', 'aeroplane', 'dog', 'cat']))
+    img_names_perm  = list(itertools.permutations(['horse', 'aeroplane', 'cat']))
+    num_perm = len(img_names_perm)
+
+    for preposition_to_use in ['AuntilB']:
+        results = np.zeros(( num_perm, len(possible_lengths), repeat ))
+        for perm_idx, img_names in enumerate(tqdm.tqdm(img_names_perm)):
+            for video_len in possible_lengths:
+                for repeat_itr in range(repeat):
+                    chat = Chat(model, vis_processor, device='cuda:{}'.format(args.gpu_id))
+                    chat_state = conv_llava_llama_2.copy()
+
+                    chat_state.system =  "You are able to understand the visual content that the user provides. Follow the instructions carefully and explain your answers in detail."
+                    img_list = []
+
+                    final_tensor, ground_truth, msg, question, answer = preposition_to_func[preposition_to_use](video_len=video_len, img_names=img_names)
+                    print('ground_truth: ', ground_truth)
+                    llm_message = chat.custom_upload_video_without_audio(final_tensor, msg, chat_state, img_list)
+
+                    user_message = question
+
+                    chat.ask(user_message, chat_state)
+                    llm_message = chat.answer(conv=chat_state,
+                                            img_list=img_list,
+                                            num_beams=5, # Set with slider in demo
+                                            temperature=1, # Set with slider in demo
+                                            max_new_tokens=300,
+                                            max_length=2000)[0]
+                    print('img_names: ', img_names)
+                    print('question: ', question)
+                    print('LLM Message: ', llm_message)
+                    print('Gt answer: ', answer)
+                    if 'Yes' in llm_message and 'No' not in llm_message and 'no' not in llm_message and answer == 'yes':
+                        results[perm_idx, possible_lengths.index(video_len), repeat_itr] = 1
+
+        break
 
     # print('Results:', results)
     with open(f'data/plotdata_{preposition_to_use}.pkl', 'wb') as f:
         pickle.dump([results, possible_lengths, repeat], f)
+
+
+if __name__ == "__main__":
+    # and_runner()
+    until_runner()
+
+
+
+
+
