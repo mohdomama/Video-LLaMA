@@ -155,19 +155,26 @@ def plot_seaborn():
     # Load NSVS-TL
     for idx, Proposition in enumerate(Propositions):
         # Load image from pickle file
-        with open(f'data/_viclip_plotdata_{Proposition}.pkl', 'rb') as f:
+        with open(f'data/_nsvstl_plotdata_{Proposition}.pkl', 'rb') as f:
             results, possible_lengths, repeat = pickle.load(f)
+
+        # thresh = 0.2142
+        # results[results>=thresh] = 1
+        # results[results<thresh] = 0
+
+        # # with open(f'data/_nsvstl_plotdata_{Proposition}.pkl', 'wb') as f:
+        # #     pickle.dump([results, possible_lengths, repeat], f)
 
         possible_lengths = [5,10,15,20, 25] # Changing possible lenghts (matching 8 to 5)
         avg = np.average(results, axis=0) # Averaging over permutations
         for i, length in enumerate(possible_lengths):
             for j in range(repeat):
-                ph_val = np.random.choice([0.85,0.9, 0.91, 0.95, 1], 1)[0]
                 if type(df)==None:
-                    df = pd.DataFrame({'Proposition': [Proposition], 'Accuracy': [ph_val], 'Length': [length], 'Approach': ['NSVS-TL']})
+                    df = pd.DataFrame({'Proposition': [Proposition], 'Accuracy': [avg[i][j]], 'Length': [length], 'Approach': ['NSVS-TL']})
                 else:
-                    df_new = pd.DataFrame({'Proposition': [Proposition], 'Accuracy': [ph_val], 'Length': [length], 'Approach': ['NSVS-TL']})
+                    df_new = pd.DataFrame({'Proposition': [Proposition], 'Accuracy': [avg[i][j]], 'Length': [length], 'Approach': ['NSVS-TL']})
                     df = pd.concat([df, df_new], ignore_index=True)
+
     
     
     fig, ax = plt.subplots(figsize=(15, 8))
@@ -180,7 +187,7 @@ def plot_seaborn():
                         ax=ax)
     ax.set_xlabel('Length (Frames)')
     plt.legend(fontsize=15)
-    plt.savefig(f'data/box_accuracy_vs_length.png')
+    plt.savefig(f'data/test_box_accuracy_vs_length.png')
     plt.close()
 
     fig, ax = plt.subplots(figsize=(15, 8))
@@ -191,7 +198,7 @@ def plot_seaborn():
                         title_str = 'Accuracy of Baselines Drop with Proposition Complexity',
                         ax=ax)
     plt.legend(fontsize=15)
-    plt.savefig(f'data/box_accuracy_vs_Proposition.png')
+    plt.savefig(f'data/test_box_accuracy_vs_Proposition.png')
     plt.close()
 
 if __name__ == "__main__":
